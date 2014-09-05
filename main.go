@@ -2,7 +2,7 @@ package main
 
 import (
 	"errors"
-	"fmt"
+	//"fmt"
 	irc "github.com/thoj/go-ircevent"
 	"log"
 	"strings"
@@ -16,7 +16,7 @@ const (
 type IRCBot struct {
 	Conn                                *irc.Connection
 	Address, Nick, User, Password, Room string
-	callbacks                           map[string]func(*irc.Event)
+	callbacks                           map[string]func(*IRCBot, *irc.Event)
 }
 
 // Launches the bot connecting it to the channel and listening for messages
@@ -30,30 +30,27 @@ func (bot *IRCBot) Run() {
 	defer bot.Conn.Disconnect()
 
 	bot.Conn.Join(bot.Room)
-	fmt.Printf("Connected to channel %s\n", bot.Room)
+	log.Printf("Connected to channel %s\n", bot.Room)
 
 	bot.Conn.SendRaw("TWITCHCLIENT 3")
-	fmt.Println("Subscribed to user events")
-
-	bot.Message("Hello world!")
+	log.Println("Subscribed to user events")
 
 	bot.Conn.AddCallback("PRIVMSG", func(e *irc.Event) {
-		if !(e.Nick == "jtv" || strings.HasPrefix(e.Message(), "!")) {
+		if !(strings.HasPrefix(e.Message(), "!") || e.Nick == "twitchnotify") {
 			return
 		}
 
-		if e.Nick == "jtv" && strings.HasPrefix(e.Message(), "SPECIALUSER") {
-			fmt.Printf("Special user %s", strings.TrimPrefix(e.Message(), "SPECIALUSER"))
+		if e.Nick == "twitchnotify" && strings.Contains(e.Message(), "just subscribed!") {
+			user := strings.Fields(e.Message())[0]
+			log.Println("New sub: ", user)
 		}
 
 		for key, callback := range bot.callbacks {
 			if strings.HasPrefix(e.Message(), key) {
-				go callback(e)
+				go callback(bot, e)
 				return
 			}
 		}
-
-		bot.Messagef("Command %s not found", e.Message())
 	})
 
 	bot.Conn.Loop()
@@ -66,7 +63,7 @@ func (bot *IRCBot) Message(s string) {
 
 // Sends formatted message to channel
 func (bot *IRCBot) Messagef(s string, v ...interface{}) {
-	bot.Conn.Privmsgf(bot.Room, s, v)
+	bot.Conn.Privmsgf(bot.Room, s, v...)
 }
 
 func (bot *IRCBot) RegisterCallback(command string, callback func(*irc.Event)) error {
@@ -84,7 +81,7 @@ func NewIRCBot(address, nick, user, password, room string) *IRCBot {
 }
 
 // Global IRC Bot definition
-var bot = NewIRCBot("irc.twitch.tv:6667", "pejter95", "pejter95", PASS, "#pejter95")
+var bot = NewIRCBot("irc.twitch.tv:6667", "pejter95", "pejter95", PASS, "#levelbf")
 
 func main() {
 	bot.Run()
