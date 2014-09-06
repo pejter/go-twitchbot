@@ -108,6 +108,16 @@ func NewIRCBot(address, nick, user, password, room string) *IRCBot {
 	return &IRCBot{irc.IRC(nick, user), []string{user}, address, nick, user, password, "#" + room, make(map[string]func(*IRCBot, SimpleMessage))}
 }
 
+// Checks if given user is a channel moderator
+func isMod(bot *IRCBot, user string) bool {
+	for _, u := range bot.Moderators {
+		if u == user {
+			return true
+		}
+	}
+	return false
+}
+
 // Global IRC Bot & Config definition
 var cfg Config
 var bot *IRCBot
@@ -119,5 +129,6 @@ func main() {
 	}
 	bot = NewIRCBot("irc.twitch.tv:6667", cfg.General.Nick, cfg.General.User, cfg.General.Password, cfg.General.Room)
 	initInfo(bot)
+	initPoll(bot)
 	bot.Run()
 }

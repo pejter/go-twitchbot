@@ -10,15 +10,6 @@ var commands = map[string]string{
 	"!info": "I have information if you have coin",
 }
 
-func isMod(bot *IRCBot, user string) bool {
-	for _, u := range bot.Moderators {
-		if u == user {
-			return true
-		}
-	}
-	return false
-}
-
 func displayInfo(bot *IRCBot, m SimpleMessage) {
 	if msg, ok := commands[m.Content]; ok {
 		bot.Message(msg)
@@ -54,5 +45,5 @@ func initInfo(bot *IRCBot) {
 		log.Println("Command ", c, " registered")
 	}
 	bot.RegisterCallback("!command", addInfo)
-	log.Println("module INFO initialized")
+	log.Println("Module INFO initialized")
 }
