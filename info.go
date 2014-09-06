@@ -33,7 +33,7 @@ func addInfo(bot *IRCBot, m SimpleMessage) {
 
 	str := strings.Fields(m.Content)
 	command := str[1]
-	content := str[2:]
+	content := strings.Join(str[2:], " ")
 	if !strings.HasPrefix(command, "!") {
 		command = "!" + command
 	}
@@ -42,7 +42,7 @@ func addInfo(bot *IRCBot, m SimpleMessage) {
 		bot.RemoveCallback(command)
 	}
 
-	commands[command] = strings.Join(content, " ")
+	commands[command] = content
 	bot.RegisterCallback(command, displayInfo)
 	bot.Messagef("Command %s added/changed", command)
 	log.Printf("Command %s added. Content: %s", command, commands[str[1]])

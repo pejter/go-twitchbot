@@ -3,15 +3,18 @@ package main
 import (
 	"errors"
 	//"fmt"
+	"code.google.com/p/gcfg"
 	irc "github.com/thoj/go-ircevent"
 	"log"
 	"strings"
 )
 
-const (
-	DEBUG = true
-	PASS  = "oauth:6oppx20dk5tcvxhgwa5a16foj4cacri"
-)
+type Config struct {
+	General struct {
+		Debug                      bool
+		User, Nick, Password, Room string
+	}
+}
 
 type IRCBot struct {
 	Conn                                *irc.Connection
@@ -27,7 +30,7 @@ type SimpleMessage struct {
 
 // Launches the bot connecting it to the channel and listening for messages
 func (bot *IRCBot) Run() {
-	bot.Conn.Debug = DEBUG
+	bot.Conn.Debug = cfg.General.Debug
 	bot.Conn.Password = bot.Password
 
 	if err := bot.Conn.Connect(bot.Address); err != nil {
@@ -102,13 +105,19 @@ func (bot *IRCBot) RemoveCallback(command string) {
 
 // Returns a new iRCBot instance
 func NewIRCBot(address, nick, user, password, room string) *IRCBot {
-	return &IRCBot{irc.IRC(nick, user), []string{user}, address, nick, user, password, room, make(map[string]func(*IRCBot, SimpleMessage))}
+	return &IRCBot{irc.IRC(nick, user), []string{user}, address, nick, user, password, "#" + room, make(map[string]func(*IRCBot, SimpleMessage))}
 }
 
-// Global IRC Bot definition
-var bot = NewIRCBot("irc.twitch.tv:6667", "pejter95", "pejter95", PASS, "#pejter95")
+// Global IRC Bot & Config definition
+var cfg Config
+var bot *IRCBot
 
 func main() {
+	err := gcfg.ReadFileInto(&cfg, "config.ini")
+	if err != nil {
+		log.Fatalln("Error while reading config: ", err)
+	}
+	bot = NewIRCBot("irc.twitch.tv:6667", cfg.General.Nick, cfg.General.User, cfg.General.Password, cfg.General.Room)
 	initInfo(bot)
 	bot.Run()
 }
