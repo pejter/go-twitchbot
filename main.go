@@ -1,11 +1,14 @@
 package main
 
 import (
-	"errors"
-	//"fmt"
 	"code.google.com/p/gcfg"
+	"database/sql"
+	"errors"
+	"github.com/coopernurse/gorp"
+	_ "github.com/mattn/go-sqlite3"
 	irc "github.com/thoj/go-ircevent"
 	"log"
+	"os"
 	"strings"
 )
 
@@ -14,13 +17,16 @@ type Config struct {
 		Debug                      bool
 		User, Nick, Password, Room string
 	}
+	Database struct {
+		Filename, Handler string
+	}
 }
 
 type IRCBot struct {
-	Conn                                *irc.Connection
-	Moderators                          []string
-	Address, Nick, User, Password, Room string
-	callbacks                           map[string]func(*IRCBot, SimpleMessage)
+	conn          *irc.Connection
+	Moderators    []string
+	Address, Room string
+	callbacks     map[string]func(SimpleMessage)
 }
 
 type SimpleMessage struct {
@@ -30,23 +36,23 @@ type SimpleMessage struct {
 
 // Launches the bot connecting it to the channel and listening for messages
 func (bot *IRCBot) Run() {
-	bot.Conn.Debug = cfg.General.Debug
-	bot.Conn.Password = bot.Password
+	bot.conn.Debug = cfg.General.Debug
+	bot.conn.Password = cfg.General.Password
 
-	if err := bot.Conn.Connect(bot.Address); err != nil {
+	if err := bot.conn.Connect(bot.Address); err != nil {
 		log.Fatalln("Could not connect", err)
 	}
-	defer bot.Conn.Disconnect()
+	defer bot.conn.Disconnect()
 
-	bot.Conn.Join(bot.Room)
+	bot.conn.Join(bot.Room)
 	log.Printf("Connected to channel %s\n", bot.Room)
 
-	bot.Conn.SendRaw("TWITCHCLIENT 3")
+	bot.conn.SendRaw("TWITCHCLIENT 3")
 	log.Println("Subscribed to user events")
 
 	bot.Message("/mods")
 
-	bot.Conn.AddCallback("PRIVMSG", func(e *irc.Event) {
+	bot.conn.AddCallback("PRIVMSG", func(e *irc.Event) {
 		if !(strings.HasPrefix(e.Message(), "!") || e.Nick == "twitchnotify" || e.Nick == "jtv") {
 			return
 		}
@@ -69,27 +75,29 @@ func (bot *IRCBot) Run() {
 		for key, callback := range bot.callbacks {
 			if strings.HasPrefix(e.Message(), key) {
 				m := SimpleMessage{e.Nick, e.Message()}
-				go callback(bot, m)
+				strings.TrimPrefix(m.Content, key)
+				go callback(m)
 				return
 			}
 		}
 	})
 
-	bot.Conn.Loop()
+	bot.Message("Levelbot joined channel")
+	bot.conn.Loop()
 }
 
 // Sends message to channel
 func (bot *IRCBot) Message(s string) {
-	bot.Conn.Privmsg(bot.Room, s)
+	bot.conn.Privmsg(bot.Room, s)
 }
 
 // Sends formatted message to channel
 func (bot *IRCBot) Messagef(s string, v ...interface{}) {
-	bot.Conn.Privmsgf(bot.Room, s, v...)
+	bot.conn.Privmsgf(bot.Room, s, v...)
 }
 
 // Adds new callback to the dispather
-func (bot *IRCBot) RegisterCallback(command string, callback func(*IRCBot, SimpleMessage)) error {
+func (bot *IRCBot) RegisterCallback(command string, callback func(SimpleMessage)) error {
 	if _, ok := bot.callbacks[command]; !ok {
 		bot.callbacks[command] = callback
 		return nil
@@ -104,31 +112,38 @@ func (bot *IRCBot) RemoveCallback(command string) {
 }
 
 // Returns a new iRCBot instance
-func NewIRCBot(address, nick, user, password, room string) *IRCBot {
-	return &IRCBot{irc.IRC(nick, user), []string{user}, address, nick, user, password, "#" + room, make(map[string]func(*IRCBot, SimpleMessage))}
+func NewIRCBot(address, nick, user, room string) *IRCBot {
+	return &IRCBot{irc.IRC(nick, user), []string{user}, address, "#" + room, make(map[string]func(SimpleMessage))}
 }
 
-// Checks if given user is a channel moderator
-func isMod(bot *IRCBot, user string) bool {
-	for _, u := range bot.Moderators {
-		if u == user {
-			return true
-		}
+func initDb() {
+	dbHandle, err := sql.Open(cfg.Database.Handler, cfg.Database.Filename)
+	if err != nil {
+		log.Fatalln("sql.Open failed")
 	}
-	return false
+
+	// construct a gorp DbMap
+	db = &gorp.DbMap{Db: dbHandle, Dialect: gorp.SqliteDialect{}}
+
+	// Enable gorp logging
+	if cfg.General.Debug {
+		db.TraceOn("[db]", log.New(os.Stdout, string(log.Ldate), log.Ltime))
+	}
 }
 
 // Global IRC Bot & Config definition
 var cfg Config
 var bot *IRCBot
+var db *gorp.DbMap
 
 func main() {
 	err := gcfg.ReadFileInto(&cfg, "config.ini")
 	if err != nil {
 		log.Fatalln("Error while reading config: ", err)
 	}
-	bot = NewIRCBot("irc.twitch.tv:6667", cfg.General.Nick, cfg.General.User, cfg.General.Password, cfg.General.Room)
-	initInfo(bot)
-	initPoll(bot)
+	bot = NewIRCBot("irc.twitch.tv:6667", cfg.General.Nick, cfg.General.User, cfg.General.Room)
+	initDb()
+	initInfo()
+	initPoll()
 	bot.Run()
 }

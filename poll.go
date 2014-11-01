@@ -53,24 +53,24 @@ func (p *Poll) Stop() {
 
 var currentPoll Poll
 
-func voteHandler(bot *IRCBot, m SimpleMessage) {
+func voteHandler(m SimpleMessage) {
 	if _, ok := currentPoll.AlreadyVoted[m.User]; ok {
 		return
 	}
 	currentPoll.TotalVotes++
 	currentPoll.Choices[m.Content]++
-	//currentPoll.AlreadyVoted[m.User] = struct{}{}
+	currentPoll.AlreadyVoted[m.User] = struct{}{}
 }
 
-func pollHandler(bot *IRCBot, m SimpleMessage) {
-	if !isMod(bot, m.User) {
-		log.Println("User ", m.User, " isn't a moderator")
+func pollHandler(m SimpleMessage) {
+	if !hasPerm(m.User, "poll_edit") {
+		log.Println("User", m.User, "doesn't have permission to edit polls!")
 		return
 	}
 
 	m.Content = strings.TrimPrefix(m.Content, "!poll ")
-	if strings.HasPrefix(m.Content, "new") {
-		list := strings.TrimPrefix(m.Content, "new ")
+	if strings.HasPrefix(m.Content, "open") {
+		list := strings.TrimPrefix(m.Content, "open ")
 		choices := strings.Split(list, ",")
 		currentPoll.Start(choices)
 	} else if strings.HasPrefix(m.Content, "close") {
@@ -84,7 +84,7 @@ func pollHandler(bot *IRCBot, m SimpleMessage) {
 	}
 }
 
-func initPoll(bot *IRCBot) {
+func initPoll() {
 	bot.RegisterCallback("!poll", pollHandler)
 	log.Println("Module POLL initialized")
 }

@@ -1,1 +1,8 @@
+# Config file
 config.ini
+
+# SublimeText project files
+*.sublime-*
+
+# Development database
+*.sqlite3
