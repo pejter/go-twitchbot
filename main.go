@@ -53,16 +53,19 @@ func (bot *IRCBot) Run() {
 	bot.Message("/mods")
 
 	bot.conn.AddCallback("PRIVMSG", func(e *irc.Event) {
-		if !(strings.HasPrefix(e.Message(), "!") || e.Nick == "twitchnotify" || e.Nick == "jtv") {
+		m := SimpleMessage{e.User, e.Message()}
+
+		if !(strings.HasPrefix(m.Content, "!") || m.User == "twitchnotify" || m.User == "jtv") {
+			checkSpam(m)
 			return
 		}
 
-		if e.Nick == "twitchnotify" {
-			user := strings.Fields(e.Message())[0]
+		if m.User == "twitchnotify" {
+			user := strings.Fields(m.Content)[0]
 			log.Println("New sub: ", user)
-		} else if e.Nick == "jtv" {
-			if strings.HasPrefix(e.Message(), "The moderators of this room are: ") {
-				list := strings.TrimPrefix(e.Message(), "The moderators of this room are: ")
+		} else if m.User == "jtv" {
+			if strings.HasPrefix(m.Content, "The moderators of this room are: ") {
+				list := strings.TrimPrefix(m.Content, "The moderators of this room are: ")
 				mods := strings.Split(list, ", ")
 				bot.Moderators = mods
 				log.Println("Moderator list updated. Mods:")
@@ -73,8 +76,7 @@ func (bot *IRCBot) Run() {
 		}
 
 		for key, callback := range bot.callbacks {
-			if strings.HasPrefix(e.Message(), key) {
-				m := SimpleMessage{e.Nick, e.Message()}
+			if strings.HasPrefix(m.Content, key) {
 				strings.TrimPrefix(m.Content, key)
 				go callback(m)
 				return
@@ -82,7 +84,7 @@ func (bot *IRCBot) Run() {
 		}
 	})
 
-	bot.Message("Levelbot joined channel")
+	//bot.Message("Levelbot joined channel")
 	bot.conn.Loop()
 }
 
@@ -127,7 +129,7 @@ func initDb() {
 
 	// Enable gorp logging
 	if cfg.General.Debug {
-		db.TraceOn("[db]", log.New(os.Stdout, string(log.Ldate), log.Ltime))
+		db.TraceOn("[db]", log.New(os.Stdout, "", log.LstdFlags))
 	}
 }
 

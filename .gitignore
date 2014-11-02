@@ -6,3 +6,6 @@ config.ini
 
 # Development database
 *.sqlite3
+
+# Binaries
+main.exe

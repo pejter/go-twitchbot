@@ -1,1 +1,1 @@
-go run `ls *.go`
+go build -x -v -o main.exe && ./main.exe

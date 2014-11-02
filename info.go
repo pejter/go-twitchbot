@@ -33,6 +33,7 @@ func addInfo(m SimpleMessage) {
 
 	if content == "delete" {
 		bot.RemoveCallback(command)
+		db.Exec("DELETE FROM commands where command='?'", command)
 		bot.Messagef("Command %s deleted", command)
 		return
 	}
