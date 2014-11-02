@@ -7,7 +7,7 @@ import (
 
 func checkSpam(m SimpleMessage) {
 	if hasPerm(m.User, "%") {
-		//return
+		return
 	}
 	linkPattern := regexp.MustCompile(`(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?`)
 	isLink := linkPattern.MatchString(m.Content)

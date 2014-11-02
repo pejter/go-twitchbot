@@ -6,13 +6,16 @@ import (
 )
 
 // Checks if given user is a channel moderator
-func hasPerm(user string, perm string) bool {
+func hasPerm(user string, perm ...string) bool {
 	for _, u := range bot.Moderators {
 		if u == user {
 			return true
 		}
 	}
-	query := fmt.Sprintf("SELECT count(1) FROM permissions WHERE user='%s' AND perm LIKE '%s'", user, perm)
+	query := fmt.Sprintf("SELECT count(1) FROM permissions WHERE user='%s'", user)
+	for _, p := range perm {
+		query += fmt.Sprintf(" AND perm LIKE '%s'", p)
+	}
 	result, err := db.SelectInt(query)
 	log.Printf("Result : %v", result)
 	if err != nil {
