@@ -14,8 +14,9 @@ import (
 
 type Config struct {
 	General struct {
-		Debug                      bool
-		User, Nick, Password, Room string
+		Debug                             bool
+		User, Nick, Password, Room, Token string
+		Threshold, Delay                  uint64
 	}
 	Database struct {
 		Filename, Handler string
@@ -33,6 +34,13 @@ type SimpleMessage struct {
 	User    string
 	Content string
 }
+
+type TimedMessage struct {
+	Threshold, Delay uint16
+	Message          string
+}
+
+var linesPast uint16
 
 // Launches the bot connecting it to the channel and listening for messages
 func (bot *IRCBot) Run() {
@@ -56,6 +64,7 @@ func (bot *IRCBot) Run() {
 		m := SimpleMessage{e.User, e.Message()}
 
 		if !(strings.HasPrefix(m.Content, "!") || m.User == "twitchnotify" || m.User == "jtv") {
+			linesPast++
 			checkSpam(m)
 			return
 		}
@@ -75,6 +84,14 @@ func (bot *IRCBot) Run() {
 			}
 		}
 
+		if strings.HasPrefix(m.Content, "!help") {
+			var coms []string
+			for key, _ := range commands {
+				coms = append(coms, key)
+			}
+			bot.Messagef("Available commands: %s", strings.Join(coms, ", "))
+		}
+
 		for key, callback := range bot.callbacks {
 			if strings.HasPrefix(m.Content, key) {
 				strings.TrimPrefix(m.Content, key)
@@ -84,6 +101,14 @@ func (bot *IRCBot) Run() {
 		}
 	})
 
+	var m TimedMessage
+	err := db.SelectOne(&m, "SELECT * from timedmessages")
+	if err != nil {
+		log.Printf("Error getting timed message: %v", err)
+	} else {
+		log.Printf("Timed message: %v", m)
+		go timerMessages(m)
+	}
 	//bot.Message("Levelbot joined channel")
 	bot.conn.Loop()
 }
@@ -115,6 +140,7 @@ func (bot *IRCBot) RemoveCallback(command string) {
 
 // Returns a new iRCBot instance
 func NewIRCBot(address, nick, user, room string) *IRCBot {
+	linesPast = 0
 	return &IRCBot{irc.IRC(nick, user), []string{user}, address, "#" + room, make(map[string]func(SimpleMessage))}
 }
 
@@ -147,5 +173,6 @@ func main() {
 	initDb()
 	initInfo()
 	initPoll()
+	initMod()
 	bot.Run()
 }

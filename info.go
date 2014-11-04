@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 )
 
 type commandStruct struct {
@@ -11,6 +12,17 @@ type commandStruct struct {
 }
 
 var commands map[string]string
+
+func timerMessages(m TimedMessage) {
+	timer := time.NewTicker(time.Second * time.Duration(m.Delay))
+	for {
+		<-timer.C
+		if linesPast > m.Threshold {
+			linesPast = 0
+			bot.Message(m.Message)
+		}
+	}
+}
 
 func displayInfo(m SimpleMessage) {
 	if msg, ok := commands[m.Content]; ok {
